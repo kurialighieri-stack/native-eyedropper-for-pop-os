@@ -10,6 +10,7 @@ A native Wayland color picker for the COSMIC desktop: a live color-ring cursor a
 - Click anywhere on a supported desktop output to select a color.
 - Copy the selected `#RRGGBB` value from a purple, dark-themed popup.
 - Right-click while sampling to save the last selected color to a compact palette, without duplicates.
+- Save/load named `.gpl` palette files, clear the working palette with confirmation, and right-click swatches in normal mode to copy HEX or delete a color.
 - Sample palette swatches with the eyedropper, or click them in normal pointer mode to select their HEX value.
 - Super+left-drag either window between outputs, preserving the pointer hotspot. Positions and palette colors are remembered.
 - Toggle sampling without closing the selected-color window; its close button dismisses it.
@@ -55,14 +56,25 @@ The palette first appears below the selected-color window. It contains small swa
 
 In normal pointer mode, hold **Super and drag with the left mouse button anywhere in either window**, including its buttons and HEX field. The compositor moves a visual copy at the exact grab offset across outputs; releasing places the real window on the output under the pointer. Escape cancels an in-progress native drag and restores the original position. Windows move independently. Each window has its own × button, usable even while sampling. Closing the palette preserves its saved colors and leaves the selected-color window open. You can also focus the palette in normal mode and press Escape to dismiss it. Right-click in sampling mode reopens the saved palette.
 
+The palette toolbar has **Save**, **Load**, and **Clear** icons on the left, with its independent close button on the right:
+
+- **Save** opens the system file chooser so you can name the palette and choose a location. Before opening it, the app creates `Palette` inside your XDG Pictures directory if necessary (for example, `~/Pictures/Palette` or `~/Imágenes/Palette`). The initial filename is `Untitled.gpl`; exports always use the lowercase `.gpl` extension, and the filename supplies the palette name inside the file. Existing destinations require overwrite confirmation.
+- **Load** opens an existing GIMP RGB palette and replaces the working colors only after validating the complete file. Duplicates are removed in order. Invalid files leave the current palette intact and show an error.
+- **Clear** asks for confirmation, with **Cancel** selected by default. Confirming empties the working palette; saved files and the selected-color window are preserved.
+
+In normal pointer mode, **right-click a swatch** for **Copy HEX** or **Delete color**. Deleting one swatch affects the working palette only. During sampling, right-click retains its save-current-selection behavior.
+
+Exports use the textual, 8-bit sRGB [GIMP Palette format](https://developer.gimp.org/core/standards/gpl/), including `GIMP Palette`, `Name:`, `Columns:`, and RGB entries. Files may be empty palettes. File dialogs and confirmation windows temporarily stop sampling and hide the layer surfaces so the system UI remains accessible; the color and palette windows return in normal pointer mode when the dialog completes or is cancelled.
+
 ```sh
 ~/.local/bin/native-eyedropper --toggle
 ~/.local/bin/native-eyedropper --status
+~/.local/bin/native-eyedropper --show-palette
 ~/.local/bin/native-eyedropper --show-color '#A785D8'
 ~/.local/bin/native-eyedropper --quit
 ```
 
-`--idle` starts the application without enabling sampling. With no arguments, the command toggles sampling. `--status` starts an idle instance if none exists.
+`--show-palette` opens the saved palette without adding a color, including when it is empty. `--idle` starts the application without enabling sampling. With no arguments, the command toggles sampling. `--status` starts an idle instance if none exists.
 
 ## How it works
 
@@ -95,13 +107,13 @@ python3 -m unittest test_core test_wayland
 bash -n install.sh build.sh
 ```
 
-The original implementation was manually exercised on a three-monitor COSMIC desktop, including exact-color capture checks, live changes, and persistence of the color window after sampling stops. Automated unit tests cover color formatting, exact pixels in both ring halves, palette validation, selection persistence, and click ordering. An opt-in session test briefly displays native windows and a known-color patch:
+The original implementation was manually exercised on a three-monitor COSMIC desktop, including exact-color capture checks, live changes, and persistence of the color window after sampling stops. Automated unit tests cover color formatting, exact pixels in both ring halves, palette validation and file round-trips, `.gpl` extension normalization, creation of the Pictures/Palette folder, selection persistence, and click ordering. An opt-in session test briefly displays native windows and a known-color patch:
 
 ```sh
 EYEDROPPER_WAYLAND_TEST=1 python3 -m unittest test_wayland -v
 ```
 
-It verifies Super+click dispatch using real `Gdk.Event` unions (including events on child buttons), active-mode close-button dispatch, independent palette closure/reopening, live screen capture, immediate select-then-save ordering, palette sampling, normal swatch clicks, remembered state, source icon hotspot, and drop placement on each output. It uses simulated drag initiation/drop callbacks; it does **not** prove a physical mouse drag's compositor behavior. For that, manually Super+left-drag both windows across each monitor boundary and verify that the original grab point stays under the cursor until release, including mixed scaling. Cancel a drag with Escape and check the original position. The new cross-output gesture still needs this physical-pointer verification on each compositor. To test manually, display a known solid RGB patch, select it, compare its HEX value, toggle sampling off, and verify that Copy HEX and the close button still work. Repeat on every output and scaling configuration. Verify that the upper ring changes while its lower half stays selected; right-click twice to check deduplication; then stop sampling and click each saved swatch. Actual pointer-drag acceptance should be checked separately from the automated drop-placement checks.
+The independent native-session scenarios also verify the toolbar order, native save-chooser creation/cancellation, filename completion, file loading, invalid-file preservation, context-menu actions, and cancel/confirm cleanup behavior. Each scenario runs in a separate process because GTK/portal state is process-global. The capture scenario verifies Super+click dispatch using real `Gdk.Event` unions (including events on child buttons), active-mode close-button dispatch, independent palette closure/reopening, live screen capture, immediate select-then-save ordering, palette sampling, normal swatch clicks, remembered state, source icon hotspot, and drop placement on each output. It uses simulated drag initiation/drop callbacks; it does **not** prove a physical mouse drag's compositor behavior. For that, manually Super+left-drag both windows across each monitor boundary and verify that the original grab point stays under the cursor until release, including mixed scaling. Cancel a drag with Escape and check the original position. The new cross-output gesture still needs this physical-pointer verification on each compositor. To test manually, display a known solid RGB patch, select it, compare its HEX value, toggle sampling off, and verify that Copy HEX and the close button still work. Repeat on every output and scaling configuration. Verify that the upper ring changes while its lower half stays selected; right-click twice to check deduplication; then stop sampling and click each saved swatch. Actual pointer-drag acceptance should be checked separately from the automated drop-placement checks.
 
 ## License
 

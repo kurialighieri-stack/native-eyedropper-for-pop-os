@@ -1,5 +1,8 @@
 """Opt-in integration tests: briefly display native windows on your desktop."""
 import os
+import functools
+import subprocess
+import sys
 from pathlib import Path
 import tempfile
 import time
@@ -11,14 +14,31 @@ import picker
 from gi.repository import Gtk, Gdk, GLib, GtkLayerShell as Layer
 
 
+def isolated_session(test):
+    """GTK/portal application state is process-global; give each scenario its own process."""
+    @functools.wraps(test)
+    def run(self):
+        if os.environ.get('EYEDROPPER_TEST_CHILD') == '1':
+            return test(self)
+        environment = dict(os.environ, EYEDROPPER_TEST_CHILD='1')
+        result = subprocess.run([sys.executable, '-m', 'unittest', self.id(), '-v'],
+                                cwd=Path(__file__).resolve().parent, env=environment,
+                                capture_output=True, text=True, timeout=20)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertNotIn('CRITICAL', result.stderr, result.stderr)
+    return run
+
+
 @unittest.skipUnless(os.environ.get('EYEDROPPER_WAYLAND_TEST') == '1', 'requires an explicitly enabled COSMIC Wayland session')
 class WaylandTests(unittest.TestCase):
+    @isolated_session
     def test_native_palette_capture_and_window_placement(self):
         with tempfile.TemporaryDirectory() as directory:
             original = picker.STATE
             picker.STATE = Path(directory) / 'selection.json'
             app = picker.App()
             app.set_application_id('local.okayu.ColorPickerIntegrationTest')
+            app.set_flags(app.get_flags() | picker.Gio.ApplicationFlags.NON_UNIQUE)
             app.register(None)
             loop = GLib.MainLoop()
             errors = []
@@ -163,4 +183,94 @@ class WaylandTests(unittest.TestCase):
                     state['patch'].destroy()
                 for window in app.windows():
                     window.destroy()
+                picker.STATE = original
+
+    @isolated_session
+    def test_palette_toolbar_files_context_menu_and_clear_confirmation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            original = picker.STATE
+            picker.STATE = Path(directory) / 'state/selection.json'
+            app = picker.App()
+            app.set_application_id('local.okayu.ColorPickerPaletteFilesTest')
+            app.set_flags(app.get_flags() | picker.Gio.ApplicationFlags.NON_UNIQUE)
+            app.register(None)
+            app.show_color(0x12ABCD)
+            app.add_palette()
+            app.show_color(0xA1B2C3)
+            app.add_palette()
+            window = app.palette_window
+            initial = list(app.palette)
+            try:
+                # Toolbar controls sit to the left of the independent close control.
+                controls = window.save_button.get_parent().get_children()
+                self.assertEqual(controls[:3], [window.save_button, window.load_button, window.clear_button])
+                app.active = True
+                for control in (window.save_button, window.load_button, window.clear_button):
+                    event = Gdk.Event.new(Gdk.EventType.BUTTON_PRESS)
+                    event.button.window = control.get_event_window()
+                    event.button.button = 1
+                    self.assertFalse(app.handle_event(event))
+                app.active = False
+                menu = window.swatch_menu(0x12ABCD)
+                with patch.object(picker, 'copy_hex') as copy:
+                    menu.get_children()[0].activate()
+                    copy.assert_called_once_with(0x12ABCD)
+                menu.get_children()[1].activate()
+                self.assertEqual(app.palette, [0xA1B2C3])
+                self.assertEqual(app.selected, 0xA1B2C3)
+                window.close_menu()
+                window.replace_colors(initial)
+                window.clear_button.clicked()
+                self.assertEqual(app.palette, initial)
+                self.assertTrue(window.action_dialog.get_visible())
+                self.assertEqual(window.action_dialog.get_response_for_widget(window.action_dialog.get_default_widget()), Gtk.ResponseType.CANCEL)
+                window.action_dialog.response(Gtk.ResponseType.CANCEL)
+                self.assertEqual(app.palette, initial)
+                self.assertTrue(window.get_visible())
+                window.clear_button.clicked()
+                window.action_dialog.response(Gtk.ResponseType.ACCEPT)
+                self.assertEqual(app.palette, [])
+                self.assertEqual(picker.load_palette(), [])
+                self.assertEqual(app.selected, 0xA1B2C3)
+                window.replace_colors(initial)
+                # Exercise the actual native chooser, then cancel without user interaction.
+                pictures = Path(directory) / 'Pictures'
+                with patch.object(picker.GLib, 'get_user_special_dir', return_value=str(pictures)):
+                    window.save_button.clicked()
+                    self.assertTrue((pictures / 'Palette').is_dir())
+                    self.assertFalse(window.get_visible())
+                    self.assertIsInstance(window.file_chooser, Gtk.FileChooserNative)
+                    loop = GLib.MainLoop()
+                    def cancel():
+                        window.file_chooser.emit('response', Gtk.ResponseType.CANCEL)
+                        loop.quit()
+                        return False
+                    GLib.timeout_add(150, cancel)
+                    loop.run()
+                self.assertIsNone(window.file_chooser)
+                self.assertTrue(window.get_visible())
+                self.assertEqual(app.palette, initial)
+                # Accepted filename gets .gpl automatically; the filename determines Name:.
+                destination = Path(directory) / 'My purple palette'
+                chooser = types.SimpleNamespace(get_filename=lambda: str(destination), destroy=lambda: None)
+                window.file_response(chooser, Gtk.ResponseType.ACCEPT, True)
+                saved = Path(str(destination) + '.gpl')
+                self.assertTrue(saved.is_file())
+                self.assertIn('Name: My purple palette\n', saved.read_text())
+                window.replace_colors([])
+                window.suspend_windows()
+                window.finish_file(saved, False)
+                self.assertEqual(app.palette, initial)
+                self.assertTrue(window.get_visible())
+                invalid = Path(directory) / 'bad.gpl'
+                invalid.write_text('GIMP Palette\n256 0 0\n')
+                with patch.object(window, 'show_file_error') as error:
+                    window.finish_file(invalid, False)
+                    error.assert_called_once()
+                self.assertEqual(app.palette, initial)
+                self.assertEqual(picker.parse_palette(saved.read_text()), initial)
+            finally:
+                app.stop()
+                for item in app.windows():
+                    item.destroy()
                 picker.STATE = original
