@@ -38,6 +38,38 @@ class WaylandTests(unittest.TestCase):
                         app.palette_window.grid.get_children()[-1].clicked()
                         self.assertEqual(app.card.entry.get_text(), '#12ABCD')
                         self.assertEqual(picker.load_palette(), [0x12ABCD, 0xA1B2C3])
+                        # Regress the actual Gdk.Event union delivered to event_handler_set.
+                        # A .button == 1 comparison fails for this event type.
+                        for window in app.windows():
+                            event = Gdk.Event.new(Gdk.EventType.BUTTON_PRESS)
+                            event.button.window = window.get_window()
+                            event.button.button = 1
+                            event.button.state = Gdk.ModifierType.MOD4_MASK
+                            event.button.x, event.button.y = 20, 20
+                            with patch.object(window, 'begin_drag') as begin:
+                                self.assertTrue(app.handle_event(event))
+                                begin.assert_called_once_with(event)
+                            app.active = True
+                            event.button.state = Gdk.ModifierType(0)
+                            with patch.object(window, 'sample') as sample:
+                                self.assertTrue(app.handle_event(event))
+                                sample.assert_called_once_with(event, picked=True)
+                            event.button.button = 3
+                            with patch.object(app, 'request_palette') as save:
+                                self.assertTrue(app.handle_event(event))
+                                save.assert_called_once()
+                            close_event = Gdk.Event.new(Gdk.EventType.BUTTON_PRESS)
+                            close_event.button.window = window.close_button.get_event_window()
+                            close_event.button.button = 1
+                            self.assertFalse(app.handle_event(close_event))
+                            app.active = False
+                        saved_colors = list(app.palette)
+                        app.palette_window.close_button.clicked()
+                        self.assertIsNone(app.palette_window)
+                        self.assertIsNotNone(app.card)
+                        self.assertEqual(app.palette, saved_colors)
+                        app.add_palette()
+                        self.assertTrue(app.palette_window.get_mapped())
                         for window in app.windows():
                             # Exercise actual icon construction and every output's drop handler.
                             display = Gdk.Display.get_default()

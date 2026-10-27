@@ -258,6 +258,12 @@ class FloatingWindow(Gtk.Window):
         self.set_resizable(False)
         self.set_visual(self.get_screen().get_rgba_visual())
         self.get_style_context().add_class('color-card')
+        self.close_button = Gtk.Button.new_from_icon_name('window-close-symbolic', Gtk.IconSize.BUTTON)
+        self.close_button.set_relief(Gtk.ReliefStyle.NONE)
+        title = 'Close palette' if kind == 'palette' else 'Close selected color'
+        self.close_button.set_tooltip_text(title)
+        self.close_button.get_accessible().set_name(title)
+        self.close_button.connect('clicked', lambda *_: self.destroy())
         Layer.init_for_window(self)
         Layer.set_namespace(self, 'okayu-color-' + kind)
         Layer.set_layer(self, Layer.Layer.OVERLAY)
@@ -384,11 +390,7 @@ class ColorCard(FloatingWindow):
         label = Gtk.Label(label='Selected color')
         label.set_xalign(0)
         header.pack_start(label, True, True, 0)
-        close = Gtk.Button.new_from_icon_name('window-close-symbolic', Gtk.IconSize.BUTTON)
-        close.set_relief(Gtk.ReliefStyle.NONE)
-        close.set_tooltip_text('Close this color window')
-        close.connect('clicked', lambda *_: self.destroy())
-        header.pack_end(close, False, False, 0)
+        header.pack_end(self.close_button, False, False, 0)
         box.pack_start(header, False, False, 0)
         row = Gtk.Box(spacing=14)
         self.swatch = Gtk.DrawingArea()
@@ -447,7 +449,12 @@ class PaletteWindow(FloatingWindow):
         self.scroll.set_max_content_height(172)
         self.scroll.set_min_content_height(40)
         self.scroll.set_min_content_width(284)
-        self.add(self.scroll)
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        header = Gtk.Box()
+        header.pack_end(self.close_button, False, False, 2)
+        box.pack_start(header, False, False, 0)
+        box.pack_start(self.scroll, True, True, 0)
+        self.add(box)
         self.grid = Gtk.Grid(column_spacing=6, row_spacing=6)
         self.grid.set_border_width(8)
         self.scroll.add(self.grid)
@@ -529,16 +536,29 @@ class App(Gtk.Application):
         window = child.get_toplevel() if child else None
         if window not in (self.card, self.palette_window) or window is None:
             return False
+        # event_handler_set receives a Gdk.Event union, NOT a Gdk.EventButton.
+        # Its .button member is a structure; use accessors for the actual number.
+        valid_button, button = event.get_button()
+        valid_state, modifiers = event.get_state()
         if event.type == Gdk.EventType.BUTTON_PRESS:
-            if not self.active and event.button == 1 and event.state & (Gdk.ModifierType.SUPER_MASK | Gdk.ModifierType.MOD4_MASK):
+            if (not self.active and valid_button and button == 1 and valid_state and
+                    modifiers & (Gdk.ModifierType.SUPER_MASK | Gdk.ModifierType.MOD4_MASK)):
                 window.begin_drag(event)
                 return True
-            if self.active:
-                if event.button == 1:
-                    window.sample(event, picked=True)
-                elif event.button == 3:
-                    self.request_palette()
-                return True
+        # Close controls must remain usable even while sampling.
+        target = child
+        while target and target is not window:
+            if target is window.close_button:
+                if event.type in (Gdk.EventType.BUTTON_PRESS, Gdk.EventType.BUTTON_RELEASE):
+                    return False
+                break
+            target = target.get_parent()
+        if self.active and event.type == Gdk.EventType.BUTTON_PRESS:
+            if valid_button and button == 1:
+                window.sample(event, picked=True)
+            elif valid_button and button == 3:
+                self.request_palette()
+            return True
         if self.active and event.type in (Gdk.EventType.MOTION_NOTIFY, Gdk.EventType.ENTER_NOTIFY):
             window.sample(event)
         if self.active and event.type == Gdk.EventType.BUTTON_RELEASE:
