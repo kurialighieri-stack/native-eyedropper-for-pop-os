@@ -6,9 +6,12 @@ A native Wayland color picker for the COSMIC desktop: a live color-ring cursor a
 
 ## Features
 
-- A pipette cursor surrounded by a ring showing the sampled pixel color.
+- A pipette cursor with a comparison ring: live pixel color on top, last selected color on the bottom. Before the first selection, both halves show the live color.
 - Click anywhere on a supported desktop output to select a color.
 - Copy the selected `#RRGGBB` value from a purple, dark-themed popup.
+- Right-click while sampling to save the last selected color to a compact palette, without duplicates.
+- Sample palette swatches with the eyedropper, or click them in normal pointer mode to select their HEX value.
+- Super+left-drag either window between outputs, preserving the pointer hotspot. Positions and palette colors are remembered.
 - Toggle sampling without closing the selected-color window; its close button dismisses it.
 - Multiple outputs, including the tested 125% fractional-scaling setup.
 - User-local installation, with no privileged background service.
@@ -46,7 +49,11 @@ The installer deliberately leaves your shortcut configuration to COSMIC Settings
 
 ## Use
 
-Press the shortcut to enable sampling. The ring follows the color under the cursor. Left-click to update the color window, then select another pixel if desired. Press the shortcut again, Escape, or right-click to restore normal pointer operation. The selected-color window remains open until you close it.
+Press the shortcut to enable sampling. Left-click to update the selected-color window. The upper half of the ring follows the pixel under the cursor, while its lower half preserves your last selection for comparison. Right-click saves **the selected color**, not the current hover color, to the palette. Repeated colors are ignored. With no selected color, right-click does nothing.
+
+The palette first appears below the selected-color window and contains only small swatches; it wraps into rows and scrolls when needed. While sampling, click a swatch to sample its actual displayed pixel. In normal pointer mode, click a swatch to put its stored RGB value in the selected-color window, then use Copy HEX. Right-click is no longer a cancel gesture: press **Super+Alt+8 or Escape** to return to normal pointer operation. Both windows remain open.
+
+In normal pointer mode, hold **Super and drag with the left mouse button anywhere in either window**, including its buttons and HEX field. The compositor moves a visual copy at the exact grab offset across outputs; releasing places the real window on the output under the pointer. Escape cancels an in-progress native drag and restores the original position. Windows move independently. Close the selected-color window with its × button; focus the palette and press Escape to dismiss it without erasing its colors. Right-click in sampling mode reopens the saved palette.
 
 ```sh
 ~/.local/bin/native-eyedropper --toggle
@@ -59,9 +66,11 @@ Press the shortcut to enable sampling. The ring follows the color under the curs
 
 ## How it works
 
-`picker.py` owns the GTK application, transparent layer-shell selection surfaces, cursor, clipboard, and color window. A background thread calls `libpixel-capture.so` through ctypes. `pixel_capture.c` connects to Wayland and captures outputs into anonymous shared-memory buffers using the compositor's image-copy protocols. The cursor is drawn separately and is not requested as part of capture. Monitor origins associate GTK surfaces with captured outputs; pointer coordinates are normalized to each output.
+`picker.py` owns the GTK application, transparent layer-shell selection surfaces, cursor, clipboard, and color window. A background thread calls `libpixel-capture.so` through ctypes. `pixel_capture.c` connects to Wayland and captures outputs into anonymous shared-memory buffers using the compositor's image-copy protocols. The cursor is drawn separately and is not requested as part of capture. Monitor origins associate GTK surfaces with captured outputs; pointer coordinates are normalized to each output. Selection and palette-save commands are serialized, so a rapid left-click followed by a right-click saves the new selection. Pointer events are intercepted before child widgets consume modified clicks or sampling clicks.
 
-The application does not save screen images. The last selected HEX value is saved to `$XDG_STATE_HOME/okayu-color-picker/selection.json` (default `~/.local/state`). While sampling, screen contents are available in process memory. Selection surfaces temporarily intercept input across outputs; stop sampling to interact normally with other applications. Protected surfaces or compositor restrictions may prevent capture. HDR/color-managed output, rotated displays, hotplugging, and other compositors have not been comprehensively tested. HEX values describe captured 8-bit RGB pixels, not calibrated physical display colors.
+Cross-output movement uses GTK/Wayland drag-and-drop: a compositor-owned drag icon renders the window at its original pointer hotspot, while transparent drop targets cover each output. The source remains mapped but transparent during the drag. A successful drop records output-local coordinates, then relocates the source after the drag completes. This avoids accumulating coordinate drift from a moving layer surface or interpreting Wayland surface-local coordinates as desktop-global coordinates. Cancelling restores the source and removes drop targets. No privileged input service, polling of global pointer coordinates, or compositor configuration changes are needed. See the GTK documentation for [drag icons](https://docs.gtk.org/gtk3/func.drag_set_icon_surface.html) and [drop handling](https://docs.gtk.org/gtk3/signal.Widget.drag-drop.html).
+
+The application does not save screen images. The last selected HEX value is saved to `$XDG_STATE_HOME/okayu-color-picker/selection.json` (default `~/.local/state`). `palette.json` stores unique RGB colors in insertion order, and `windows.json` stores window positions and output identification. These user data files are not part of this repository. While sampling, screen contents are available in process memory. Selection surfaces temporarily intercept input across outputs; stop sampling to interact normally with other applications. Protected surfaces or compositor restrictions may prevent capture. HDR/color-managed output, rotated displays, hotplugging, and other compositors have not been comprehensively tested. HEX values describe captured 8-bit RGB pixels, not calibrated physical display colors.
 
 ## Updates and recovery
 
@@ -82,11 +91,17 @@ To uninstall, quit the application, remove its custom shortcut in COSMIC Setting
 ```sh
 bash build.sh
 python3 -m py_compile picker.py
-python3 -m unittest test_core
+python3 -m unittest test_core test_wayland
 bash -n install.sh build.sh
 ```
 
-The original implementation was manually exercised on a three-monitor COSMIC desktop, including exact-color capture checks, live changes, and persistence of the color window after sampling stops. Automated unit tests cover color formatting and selection persistence; they do not replace a real Wayland-session test. To test manually, display a known solid RGB patch, select it, compare its HEX value, toggle sampling off, and verify that Copy HEX and the close button still work. Repeat on every output and scaling configuration.
+The original implementation was manually exercised on a three-monitor COSMIC desktop, including exact-color capture checks, live changes, and persistence of the color window after sampling stops. Automated unit tests cover color formatting, exact pixels in both ring halves, palette validation, selection persistence, and click ordering. An opt-in session test briefly displays native windows and a known-color patch:
+
+```sh
+EYEDROPPER_WAYLAND_TEST=1 python3 -m unittest test_wayland -v
+```
+
+It verifies live screen capture, immediate select-then-save ordering, palette sampling, normal swatch clicks, remembered state, source icon hotspot, and drop placement on each output. It uses simulated drag initiation/drop callbacks; it does **not** prove a physical mouse drag's compositor behavior. For that, manually Super+left-drag both windows across each monitor boundary and verify that the original grab point stays under the cursor until release, including mixed scaling. Cancel a drag with Escape and check the original position. The new cross-output gesture still needs this physical-pointer verification on each compositor. To test manually, display a known solid RGB patch, select it, compare its HEX value, toggle sampling off, and verify that Copy HEX and the close button still work. Repeat on every output and scaling configuration. Verify that the upper ring changes while its lower half stays selected; right-click twice to check deduplication; then stop sampling and click each saved swatch. Actual pointer-drag acceptance should be checked separately from the automated drop-placement checks.
 
 ## License
 
