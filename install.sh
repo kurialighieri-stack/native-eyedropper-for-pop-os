@@ -7,7 +7,9 @@ if [[ -d "$app" ]]; then
   cp -a "$app" "$app.backup-$(date +%Y%m%d-%H%M%S)"
 fi
 mkdir -p "$app" "$HOME/.local/bin" "$HOME/.local/share/applications"
-install -m 644 picker.py libpixel-capture.so "$app/"
+install -m 644 picker.py picker_model.py magnifier.py cosmic_style.py libpixel-capture.so libcosmic-effects.so "$app/"
+mkdir -p "$app/locale"
+cp -a locale/. "$app/locale/"
 cat > "$HOME/.local/bin/native-eyedropper" <<'LAUNCHER'
 #!/bin/sh
 exec /usr/bin/python3 "$HOME/.local/share/okayu-color-picker/picker.py" "$@"
@@ -16,8 +18,10 @@ chmod +x "$HOME/.local/bin/native-eyedropper"
 cat > "$HOME/.local/share/applications/local.okayu.ColorPicker.desktop" <<DESKTOP
 [Desktop Entry]
 Type=Application
-Name=Native Eyedropper
-Comment=Pick screen colors and copy their HEX code
+Name=Okayu Color Picker
+Comment=Pick, compare and organize screen colors
+Comment[es]=Selecciona, compara y organiza colores de la pantalla
+Comment[pt_BR]=Selecione, compare e organize cores da tela
 Exec="$HOME/.local/bin/native-eyedropper" --toggle
 Icon=color-select-symbolic
 Categories=Graphics;

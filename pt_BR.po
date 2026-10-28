@@ -1,0 +1,139 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: Okayu Color Picker 0.2\nPO-Revision-Date: 2026-10-27 00:00+0000\nLast-Translator: AI-assisted project contributors\nLanguage-Team: pt_BR\nContent-Type: text/plain; charset=UTF-8\nLanguage: pt_BR\nMIME-Version: 1.0\nContent-Transfer-Encoding: 8bit\n"
+
+msgid "All files"
+msgstr "Todos os arquivos"
+
+msgid "Approximate CMYK conversion without a print profile"
+msgstr "Conversão CMYK aproximada sem perfil de impressão"
+
+msgid "Automatic"
+msgstr "Automático"
+
+msgid "Blur is unavailable in this session; opaque backgrounds are used."
+msgstr "O desfoque não está disponível nesta sessão; serão usados fundos opacos."
+
+msgid "COSMIC does not expose the required capture protocol in this session."
+msgstr "O COSMIC não disponibiliza o protocolo de captura necessário nesta sessão."
+
+msgid "Cancel"
+msgstr "Cancelar"
+
+msgid "Clear current palette"
+msgstr "Limpar paleta atual"
+
+msgid "Clear current palette?"
+msgstr "Limpar a paleta atual?"
+
+msgid "Clear palette"
+msgstr "Limpar paleta"
+
+msgid "Click a color to select it · Super+drag or middle button to move"
+msgstr "Clique em uma cor para selecioná-la · Super+arrastar ou botão do meio para mover"
+
+msgid "Click a color to select it · Super+drag to move · Escape to close"
+msgstr "Clique em uma cor para selecioná-la · Super+arrastar para mover · Escape para fechar"
+
+msgid "Close"
+msgstr "Fechar"
+
+msgid "Close palette"
+msgstr "Fechar paleta"
+
+msgid "Close selected color"
+msgstr "Fechar cor selecionada"
+
+msgid "Copied"
+msgstr "Copiado"
+
+msgid "Copy {format}"
+msgstr "Copiar {format}"
+
+msgid "Could not activate the eyedropper"
+msgstr "Não foi possível ativar o conta-gotas"
+
+msgid "Could not capture output {output}"
+msgstr "Não foi possível capturar a tela {output}"
+
+msgid "Could not match monitors to COSMIC capture outputs."
+msgstr "Não foi possível associar os monitores às capturas do COSMIC."
+
+msgid "Delete color"
+msgstr "Excluir cor"
+
+msgid "Disabled"
+msgstr "Desativado"
+
+msgid "Enabled"
+msgstr "Ativado"
+
+msgid "Frosted glass"
+msgstr "Vidro fosco"
+
+msgid "GIMP RGB palettes (*.gpl)"
+msgstr "Paletas RGB do GIMP (*.gpl)"
+
+msgid "Invalid RGB color on line {line}."
+msgstr "Cor RGB inválida na linha {line}."
+
+msgid "Invalid column count on line {line}."
+msgstr "Quantidade de colunas inválida na linha {line}."
+
+msgid "Language"
+msgstr "Idioma"
+
+msgid "Load palette"
+msgstr "Carregar paleta"
+
+msgid "Next format"
+msgstr "Próximo formato"
+
+msgid "No"
+msgstr "Não"
+
+msgid "Open"
+msgstr "Abrir"
+
+msgid "Palette colors must be 24-bit RGB values."
+msgstr "As cores da paleta devem ser valores RGB de 24 bits."
+
+msgid "Palette operation failed"
+msgstr "Não foi possível concluir a operação com a paleta"
+
+msgid "Preferences"
+msgstr "Preferências"
+
+msgid "Previous format"
+msgstr "Formato anterior"
+
+msgid "Remove all {count} colors from this palette? Saved palette files will not be changed."
+msgstr "Remover todas as {count} cores desta paleta? Os arquivos salvos não serão alterados."
+
+msgid "Replace existing palette?"
+msgstr "Substituir a paleta existente?"
+
+msgid "Save"
+msgstr "Salvar"
+
+msgid "Save palette"
+msgstr "Salvar paleta"
+
+msgid "Selected color"
+msgstr "Cor selecionada"
+
+msgid "Super+Alt+8: toggle · Super+drag or middle button: move"
+msgstr "Super+Alt+8: alternar · Super+arrastar ou botão do meio: mover"
+
+msgid "System"
+msgstr "Sistema"
+
+msgid "The output is no longer available. Reactivate the eyedropper."
+msgstr "A tela não está mais disponível. Ative o conta-gotas novamente."
+
+msgid "This is not a GIMP RGB palette (.gpl)."
+msgstr "Este arquivo não é uma paleta RGB do GIMP (.gpl)."
+
+msgid "Yes"
+msgstr "Sim"
+
